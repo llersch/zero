@@ -37,15 +37,15 @@ class btree_m : public smlevel_0 {
     friend class btree_ghost_reclaim_log;
 
 public:
-    NORET                        btree_m()   {};
-    NORET                        ~btree_m()  {};
+    NORET                                btree_m()   {};
+    virtual NORET                        ~btree_m()  {};
     void                         construct_once();
     void                         destruct_once();
 
     static smsize_t                max_entry_size();
 
     /** Create a btree. Return the root page id in root. */
-    static rc_t                        create(
+    rc_t                        create(
         StoreID              stid,
         PageID               root
         );
@@ -53,7 +53,7 @@ public:
     /**
     * Insert <key, el> into the btree.
     */
-    static rc_t                        insert(
+    virtual rc_t                        insert(
         StoreID store,
         const w_keystr_t&                 key,
         const cvec_t&                     elem);
@@ -61,7 +61,7 @@ public:
     /**
     * Update el of key with the new data.
     */
-    static rc_t                        update(
+    virtual rc_t                        update(
         StoreID store,
         const w_keystr_t&                 key,
         const cvec_t&                     elem);
@@ -70,7 +70,7 @@ public:
     * Put <key, el> into the btree; if key didn't exist, inserts it, otherwise updates el of key
     * with the new data.
     */
-    static rc_t                        put(
+    virtual rc_t                        put(
         StoreID store,
         const w_keystr_t&                 key,
         const cvec_t&                     elem);
@@ -78,7 +78,7 @@ public:
     /**
     * Update specific part of el of key with the new data.
     */
-    static rc_t                        overwrite(
+    virtual rc_t                        overwrite(
         StoreID store,
         const w_keystr_t&                 key,
         const char*                       el,
@@ -86,36 +86,36 @@ public:
         smsize_t                          elen);
 
     /** Remove key from the btree. */
-    static rc_t                        remove(
+    virtual rc_t                        remove(
         StoreID store,
         const w_keystr_t&                    key);
 
     /** Print the btree (for debugging only). */
-    static void                 print(const PageID& root,  bool print_elem = true);
+    virtual void                 print(const PageID& root,  bool print_elem = true);
 
     /** Touch all pages in the btree (for performance experiments). */
-    static rc_t                 touch_all(StoreID stid, uint64_t &page_count);
-    static rc_t                 touch(const btree_page_h& page, uint64_t &page_count);
+    virtual rc_t                 touch_all(StoreID stid, uint64_t &page_count);
+    virtual rc_t                 touch(const btree_page_h& page, uint64_t &page_count);
 
     /**
      * \brief Defrags the given page to remove holes and ghost records in the page.
      * \ingroup SSMBTREE
      * @copydetails btree_impl::_sx_defrag_page
     */
-    static rc_t                 defrag_page(btree_page_h &page);
+    virtual rc_t                 defrag_page(btree_page_h &page);
 
     /**
     * Find key in btree. If found, copy up to elen bytes of the
     *  entry element into el.
     */
-    static rc_t                        lookup(
+    virtual rc_t                        lookup(
         StoreID store,
         const w_keystr_t&              key_to_find,
         void*                          el,
         smsize_t&                      elen,
         bool&                          found);
 
-    static rc_t                 get_du_statistics(
+    virtual rc_t                 get_du_statistics(
         const PageID &root_pid,
         btree_stats_t&                btree_stats,
         bool                            audit);
@@ -124,7 +124,7 @@ public:
     *  Verifies the integrity of whole tree using the fence-key bitmap technique.
      * @copydetails btree_impl::_ux_verify_tree(const PageID&,int,bool&)
     */
-    static rc_t                        verify_tree(
+    virtual rc_t                        verify_tree(
         StoreID store, int hash_bits, bool &consistent);
 
     /**
@@ -137,17 +137,17 @@ protected:
     /*
      * for use by logrecs for undo
      */
-    static rc_t remove_as_undo(StoreID store,const w_keystr_t &key);
-    static rc_t update_as_undo(StoreID store,const w_keystr_t &key, const cvec_t &elem);
-    static rc_t overwrite_as_undo(StoreID store,const w_keystr_t &key,
+    virtual rc_t remove_as_undo(StoreID store,const w_keystr_t &key);
+    virtual rc_t update_as_undo(StoreID store,const w_keystr_t &key, const cvec_t &elem);
+    virtual rc_t overwrite_as_undo(StoreID store,const w_keystr_t &key,
                                   const char *el, smsize_t offset, smsize_t elen);
-    static rc_t undo_ghost_mark(StoreID store,const w_keystr_t &key);
+    virtual rc_t undo_ghost_mark(StoreID store,const w_keystr_t &key);
 private:
     /** Return true in ret if btree at root is empty. false otherwise. */
-    static rc_t                        is_empty(StoreID store, bool& ret);
+    virtual rc_t                        is_empty(StoreID store, bool& ret);
 
     /** Used by get_du_statistics internally to collect all nodes' statistics. */
-    static rc_t _get_du_statistics_recurse(
+    virtual rc_t _get_du_statistics_recurse(
         const PageID&        currentpid,
         btree_stats_t&        _stats,
         base_stat_t        &lf_cnt,
