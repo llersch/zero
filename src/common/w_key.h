@@ -16,7 +16,8 @@ class cvec_t;
 // later, just use 0, 1,.. for better compression.
 const unsigned char SIGN_NEGINF = 42;
 const unsigned char SIGN_REGULAR = 43;
-const unsigned char SIGN_POSINF = 44;
+const unsigned char SIGN_PARTITIONED = 44;
+const unsigned char SIGN_POSINF = 45;
 
 typedef uint32_t w_keystr_len_t;
 
@@ -77,6 +78,7 @@ str1.construct_regularkey ("your_key", 8);\endverbatim
      * @see construct_from_keystr (const void *, w_keystr_len_t)
      */
     bool construct_regularkey(const void *nonkeystr, w_keystr_len_t length);
+    bool construct_partitionedkey(partitionid_t id, const void *nonkeystr, w_keystr_len_t length);
 
     /** Creates an object that represents negative infinity. */
     bool construct_neginfkey();
@@ -130,8 +132,10 @@ str1.construct_regularkey ("your_key", 8);\endverbatim
     bool is_neginf () const;
     /** Returns if this object represents positive infinity. */
     bool is_posinf () const;
-    /** Returns if this object represents non-inifinity value. */
+    /** Returns if this object represents non-inifinity regular value. */
     bool is_regular () const;
+    /** Returns if this object represents non-inifinity partitioned value. */
+    bool is_partitioned () const;
 
     /** Returns the count of common leading bytes with the given key string. */
     w_keystr_len_t common_leading_bytes (const w_keystr_t &r) const;
@@ -196,6 +200,9 @@ str1.construct_regularkey ("your_key", 8);\endverbatim
     /** length of this string WITH sign byte. */
     w_keystr_len_t get_length_as_keystr () const;
 
+    /* Returns the partition id of the given key. */
+    partitionid_t get_partition_id();
+
     /** discards all data and releases all resources. */
     void clear ();
 private:
@@ -229,7 +236,7 @@ inline w_keystr_t::w_keystr_t () : _data (NULL), _strlen (0), _memlen(0) {
 }
 
 inline w_keystr_t::w_keystr_t (const w_keystr_t &r) : _data (NULL), _strlen (r._strlen), _memlen(0) {
-    assert (r._strlen == 0 || r.is_neginf() || r.is_regular() || r.is_posinf());
+    assert (r._strlen == 0 || r.is_neginf() || r.is_regular() || r.is_partitioned() || r.is_posinf());
     if (r._data != NULL) {
         _assure (_strlen);
         if (_data != NULL) {
@@ -238,7 +245,7 @@ inline w_keystr_t::w_keystr_t (const w_keystr_t &r) : _data (NULL), _strlen (r._
     }
 }
 inline w_keystr_t& w_keystr_t::operator=(const w_keystr_t &r) {
-    assert (r._strlen == 0 || r.is_neginf() || r.is_regular() || r.is_posinf());
+    assert (r._strlen == 0 || r.is_neginf() || r.is_regular() || r.is_partitioned() || r.is_posinf());
     _strlen = r._strlen;
     if (r._data != NULL) {
         _assure (_strlen);
@@ -256,6 +263,17 @@ inline bool w_keystr_t::construct_regularkey(const void *nonkeystr, w_keystr_len
     if (_data == NULL) return false;
     _data[0] = SIGN_REGULAR;
     ::memcpy (_data + 1, nonkeystr, length);
+    return true;
+}
+
+inline bool w_keystr_t::construct_partitionedkey(partitionid_t id, const void *nonkeystr, w_keystr_len_t length) {
+    assert (nonkeystr != NULL);
+    _strlen = sizeof(partitionid_t) + length + 1;
+    _assure (_strlen);
+    if (_data == NULL) return false;
+    _data[0] = SIGN_PARTITIONED;
+    _data[1] = id;
+    ::memcpy (_data + 3, nonkeystr, length);
     return true;
 }
 
@@ -279,7 +297,8 @@ inline bool w_keystr_t::construct_posinfkey() {
 inline bool _valid_signbyte (const void *keystr) {
     return ((const unsigned char*)keystr)[0] == SIGN_NEGINF  // *
         || ((const unsigned char*)keystr)[0] == SIGN_REGULAR // +
-        || ((const unsigned char*)keystr)[0] == SIGN_POSINF; // ,
+        || ((const unsigned char*)keystr)[0] == SIGN_PARTITIONED // ,
+        || ((const unsigned char*)keystr)[0] == SIGN_POSINF; // -
 }
 
 inline bool w_keystr_t::construct_from_keystr(const void *keystr, w_keystr_len_t length) {
@@ -397,7 +416,12 @@ inline int w_keystr_t::compare_nonkeystr (const void *nonkeystr, w_keystr_len_t 
     if (is_posinf()) {
         return 1;
     }
-    return compare_bin_str (_data + 1, _strlen - 1, nonkeystr, length);
+    if(is_regular()) {
+        return compare_bin_str (_data + 1, _strlen - 1, nonkeystr, length);
+    }
+    else {  // partitioned
+        return compare_bin_str (_data + 3, _strlen - 3, nonkeystr, length);
+    }
 }
 inline void w_keystr_t::clear () {
     delete[] _data; // this is okay with _data==NULL
@@ -427,20 +451,42 @@ inline bool w_keystr_t::is_regular () const {
     assert (is_constructed());
     return ((const char*)_data)[0] == SIGN_REGULAR;
 }
+inline bool w_keystr_t::is_partitioned () const {
+    if (_strlen == 0) {
+        return false;
+    }
+    assert (is_constructed());
+    return ((const char*)_data)[0] == SIGN_PARTITIONED;
+}
 
 inline void w_keystr_t::serialize_as_nonkeystr (void *buffer) const {
     assert (buffer != NULL);
     assert (is_constructed());
     assert (!is_neginf() && !is_posinf()); // these can't be serialized as non-key
-    ::memcpy (buffer, _data + 1, _strlen - 1);
+    if(is_regular()) {
+        ::memcpy (buffer, _data + 1, _strlen - 1);
+    }
+    else {  //partitioned
+        ::memcpy (buffer, _data + 3, _strlen - 3);
+    }
 }
 inline std::basic_string<unsigned char> w_keystr_t::serialize_as_nonkeystr () const {
     assert (is_constructed());
     assert (!is_neginf() && !is_posinf()); // these can't be serialized as non-key
-    return std::basic_string<unsigned char> (_data + 1, _strlen - 1);
+    if(is_regular()) {
+        return std::basic_string<unsigned char> (_data + 1, _strlen - 1);
+    }
+    else {
+        return std::basic_string<unsigned char> (_data + 3, _strlen - 3);
+    }
 }
 inline w_keystr_len_t w_keystr_t::get_length_as_nonkeystr () const {
-    return _strlen - 1;
+    if(is_partitioned()) {
+        return _strlen - 3;
+    }
+    else {
+        return _strlen - 1;
+    }
 }
 
 inline void w_keystr_t::serialize_as_keystr (void *buffer) const {
@@ -451,9 +497,19 @@ inline void w_keystr_t::serialize_as_keystr (void *buffer) const {
     assert (is_constructed());
     ::memcpy (buffer, _data, _strlen);
 }
+
+inline partitionid_t w_keystr_t::get_partition_id() {
+    if (_strlen == 0) {
+        return -1; //error!
+    }
+    assert (is_constructed() && is_partitioned());
+    return _data[1];
+}
+
 inline const void* w_keystr_t::buffer_as_keystr () const {
     return _data;
 }
+
 inline w_keystr_len_t w_keystr_t::get_length_as_keystr () const {
     return _strlen;
 }
