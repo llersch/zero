@@ -49,6 +49,7 @@ typedef uint32_t    StoreID;
 #ifndef SM_SOURCE
 #endif
 
+typedef uint16_t partitionid_t;
 
 /* Type of a record# on a page  in SM (sans page,store,volume info) */
 typedef int16_t slotid_t;
