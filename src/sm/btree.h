@@ -115,7 +115,7 @@ public:
         smsize_t&                      elen,
         bool&                          found);
 
-    virtual rc_t                 get_du_statistics(
+    static rc_t                 get_du_statistics(
         const PageID &root_pid,
         btree_stats_t&                btree_stats,
         bool                            audit);
@@ -147,7 +147,7 @@ private:
     virtual rc_t                        is_empty(StoreID store, bool& ret);
 
     /** Used by get_du_statistics internally to collect all nodes' statistics. */
-    virtual rc_t _get_du_statistics_recurse(
+    static rc_t _get_du_statistics_recurse(
         const PageID&        currentpid,
         btree_stats_t&        _stats,
         base_stat_t        &lf_cnt,
